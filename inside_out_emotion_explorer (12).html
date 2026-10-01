@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>인사이드 아웃 감정 탐색기 & 맞춤 솔루션</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: Inter & Noto Sans KR -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans KR"', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            joy: '#FACC15',
+            sadness: '#3B82F6',
+            anger: '#EF4444',
+            fear: '#A855F7',
+            disgust: '#10B981',
+            anxiety: '#F97316',
+            embarrassment: '#EC4899',
+            envy: '#14B8A6',
+            ennui: '#6366F1',
+            regret: '#C084FC',
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'float': 'float 6s ease-in-out infinite',
+            'glow': 'glow 2s ease-in-out infinite alternate',
+            'shred': 'shred 1s forwards ease-in-out'
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
+              '50%': { transform: 'translateY(-12px) rotate(3deg)' },
+            },
+            glow: {
+              '0%': { boxShadow: '0 0 15px rgba(255, 255, 255, 0.2)' },
+              '100%': { boxShadow: '0 0 30px rgba(255, 255, 255, 0.8), 0 0 50px currentColor' }
+            },
+            shred: {
+              '0%': { transform: 'translateY(0) scale(1)', opacity: '1' },
+              '50%': { transform: 'translateY(80px) scale(0.9) skewX(10deg)', opacity: '0.6' },
+              '100%': { transform: 'translateY(200px) scale(0.1) rotate(20deg)', opacity: '0' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* Glassmorphism card utility */
+    .glass-card {
+      background: rgba(30, 41, 59, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .glass-pill {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .glass-pill:hover, .glass-pill.active {
+      background: rgba(255, 255, 255, 0.22);
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    /* Floating Canvas for Memory Orbs */
+    #orbCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
+
+    /* Range Slider Styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      height: 10px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 24px;
+      width: 24px;
+      border-radius: 50%;
+      background: #ffffff;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(255,255,255,0.8);
+      transition: transform 0.1s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+  </style>
+</head>
+<body class="relative font-sans antialiased selection:bg-yellow-400 selection:text-slate-900">
+
+  <!-- Full-Screen Global Floating Memory Orbs Layer -->
+  <div id="globalFloatingOrbsContainer" class="fixed inset-0 pointer-events-none z-20 overflow-hidden"></div>
+
+  <!-- Floating Background Memory Orbs Canvas -->
+  <canvas id="orbCanvas"></canvas>
+
+  <!-- Application Container -->
+  <div class="relative z-10 min-h-screen flex flex-col justify-between p-4 md:p-8 max-w-5xl mx-auto">
+
+    <!-- Header / Navigation Bar -->
+    <header class="flex items-center justify-between py-4 border-b border-slate-700/50 mb-6">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="goToStep(1)">
+        <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-cyan-400 p-[2px] animate-pulse">
+          <div class="w-full h-full bg-slate-900 rounded-full flex items-center justify-center">
+            <i class="fa-solid font-bold fa-brain text-yellow-300 text-lg"></i>
+          </div>
+        </div>
+        <div>
+          <h1 class="font-black text-xl md:text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-pink-200 to-cyan-200">
+            인사이드 아웃 <span class="text-xs md:text-sm font-normal px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">HQ 감정 본부</span>
+          </h1>
+          <p class="text-xs text-slate-400">내 마음속 감정 탐색 및 AI 맞춤 솔루션</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <button onclick="openMemoryVault()" class="glass-pill px-3 py-1.5 rounded-full text-xs font-semibold text-slate-200 hover:text-white flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-box-archive text-yellow-400"></i>
+          <span>핵심 기억 창고 (<span id="savedCount">0</span>)</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Dynamic Steps Container -->
+    <main class="flex-grow flex items-center justify-center py-4">
+
+      <!-- STEP 1: LANDING HERO -->
+      <section id="step1" class="w-full text-center space-y-8 max-w-2xl mx-auto animate-float">
+        <div class="relative inline-block">
+          <div class="absolute -inset-1 rounded-full bg-gradient-to-r from-yellow-400 via-purple-500 to-cyan-400 blur-xl opacity-50 animate-pulse"></div>
+          <div class="relative w-32 h-32 md:w-40 md:h-40 mx-auto rounded-full glass-card flex items-center justify-center border-2 border-white/30 shadow-2xl">
+            <i class="fa-solid fa-sparkles text-6xl md:text-7xl text-yellow-300"></i>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <h2 class="text-3xl md:text-5xl font-black tracking-tight text-white leading-tight">
+            오늘 당신의 감정 본부에는<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-300 to-sky-300">어떤 기억 구슬</span>이 쌓였나요?
+          </h2>
+          <p class="text-slate-300 text-sm md:text-base leading-relaxed">
+            기쁨이, 슬픔이, 버럭이, 불안이부터 후회와 자책까지.<br>
+            마음 속 솔직한 감정을 마주하고, 감정별로 완전히 차별화된 5~7가지 맞춤형 행동 솔루션을 확인해보세요.
+          </p>
+        </div>
+
+        <!-- Global Floating Memory Orbs Indicator Banner -->
+        <div id="homepageOrbsWrapper" class="w-full relative my-6 text-center">
+          <div class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full glass-pill border border-yellow-400/40 text-xs md:text-sm font-bold text-yellow-300 shadow-xl backdrop-blur-md animate-pulse">
+            <i class="fa-solid fa-sparkles text-yellow-400"></i>
+            <span id="floatingOrbBannerText">내가 모은 핵심 기억 구슬들이 전체 화면을 두둥실 떠다니고 있어요!</span>
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <button onclick="goToStep(2)" class="px-8 py-4 rounded-2xl bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 text-slate-950 font-black text-lg shadow-lg hover:shadow-yellow-500/30 hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 mx-auto">
+            <span>감정 탐색 시작하기</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 2: EMOTION SELECTION -->
+      <section id="step2" class="w-full space-y-6 hidden">
+        <div class="text-center space-y-2">
+          <span class="text-xs font-bold tracking-widest text-yellow-400 uppercase">Step 01 / 04</span>
+          <h2 class="text-2xl md:text-3xl font-extrabold text-white">지금 느껴지는 주요 감정을 선택해 주세요</h2>
+          <p class="text-xs md:text-sm text-slate-400">인사이드 아웃의 핵심 감정 캐릭터 또는 세부 감정을 고르실 수 있습니다.</p>
+        </div>
+
+        <!-- 9 Core Character Emotion Cards -->
+        <div class="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-9 gap-3">
+          <!-- Joy -->
+          <button onclick="selectEmotion('joy', '기쁨이', '#FACC15', '😊', '빛나는 기쁨과 환희')" class="emotion-btn glass-pill p-3 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-transparent hover:border-yellow-400 transition text-center group">
+            <span class="text-3xl md:text-4xl group-hover:scale-110 transition">😊</span>
+            <span class="font-bold text-xs md:text-sm text-yellow-300">기쁨이</span>
+          </button>
+          <!-- Sadness -->
+          <button onclick="selectEmotion('sadness', '슬픔이', '#3B82F6', '💧', '깊은 위로가 필요한 슬픔')" class="emotion-btn glass-pill p-3 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-transparent hover:border-blue-400 transition text-center group">
+            <span class="text-3xl md:text-4xl group-hover:scale-110 transition">💧</span>
+            <span class="font-bold text-xs md:text-sm text-blue-400">슬픔이</span>
+          </button>
+          <!-- Anger -->
+          <button onclick="selectEmotion('anger', '버럭이', '#EF4444', '🔥', '폭발할 것 같은 분노')" class="emotion-btn glass-pill p-3 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-transparent hover:border-red-400 transition text-center group">
+            <span class="text-3xl md:text-4xl group-hover:scale-110 transition">🔥</span>
+            <span class="font-bold text-xs md:text-sm text-red-400">버럭이</span>
+          </button>
+          <!-- Fear -->
+          <button onclick="selectEmotion('fear', '소심이', '#A855F7', '😨', '두려움과 걱정')" class="emotion-btn glass-pill p-3 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-transparent hover:border-purple-400 transition text-center group">
+            <span class="text-3xl md:text-4xl group-hover:scale-110 transition">😨</span>
+            <span class="font-bold text-xs md:text-sm text-purple-300">소심이</span>
+          </button>
+          <!-- Disgust -->
+          <button onclick="selectEmotion('disgust', '까칠이', '#10B981', '🤢', '거부감과 불쾌함')" class="emotion-btn glass-pill p-3 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-transparent hover:border-emerald-400 transition text-center group">
+            <span class="text-3xl md:text-4xl group-hover:scale-110 transition">🤢</span>
+            <span class="font-bold text-xs md:text-sm text-emerald-400">까칠이</span>
+          </button>
+          <!-- Anxiety -->
+          <button onclick="selectEmotion('anxiety', '불안이', '#F97316', '⚡', '통제하기 힘든 안절부절 불안')" class="emotion-btn glass-pill p-3 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-transparent hover:border-orange-400 transition text-center group">
+            <span class="text-3xl md:text-4xl group-hover:scale-110 transition">⚡</span>
+            <span class="font-bold text-xs md:text-sm text-orange-400">불안이</span>
+          </button>
+          <!-- Embarrassment -->
+          <button onclick="selectEmotion('embarrassment', '당황이', '#EC4899', '😳', '얼굴이 붉어지는 부끄러움과 당황')" class="emotion-btn glass-pill p-3 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-transparent hover:border-pink-400 transition text-center group">
+            <span class="text-3xl md:text-4xl group-hover:scale-110 transition">😳</span>
+            <span class="font-bold text-xs md:text-sm text-pink-400">당황이</span>
+          </button>
+          <!-- Envy -->
+          <button onclick="selectEmotion('envy', '부럼이', '#14B8A6', '🥺', '부러움과 질투 마음')" class="emotion-btn glass-pill p-3 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-transparent hover:border-teal-400 transition text-center group">
+            <span class="text-3xl md:text-4xl group-hover:scale-110 transition">🥺</span>
+            <span class="font-bold text-xs md:text-sm text-teal-400">부럼이</span>
+          </button>
+          <!-- Ennui -->
+          <button onclick="selectEmotion('ennui', '따분이', '#6366F1', '🥱', '무기력하고 무료함')" class="emotion-btn glass-pill p-3 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-transparent hover:border-indigo-400 transition text-center group">
+            <span class="text-3xl md:text-4xl group-hover:scale-110 transition">🥱</span>
+            <span class="font-bold text-xs md:text-sm text-indigo-300">따분이</span>
+          </button>
+        </div>
+
+        <!-- Additional Specific Emotion Tags -->
+        <div class="glass-card p-4 rounded-2xl space-y-3">
+          <div class="text-xs font-bold text-slate-300 flex items-center gap-2">
+            <i class="fa-solid fa-tags text-cyan-400"></i>
+            <span>또는 구체적인 마음 상태 선택 (후회/자책/외로움 등):</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="selectEmotion('regret', '후회/자책', '#C084FC', '🪞', '지나간 일에 대한 자책과 후회')" class="emotion-btn glass-pill px-3 py-1.5 rounded-xl text-xs font-medium hover:text-purple-300 border border-purple-500/30">
+              🪞 후회 & 자책
+            </button>
+            <button onclick="selectEmotion('sadness', '외로움', '#60A5FA', '🌧️', '혼자 떨어진 느낌과 쓸쓸함')" class="emotion-btn glass-pill px-3 py-1.5 rounded-xl text-xs font-medium hover:text-blue-300 border border-blue-500/30">
+              🌧️ 외로움
+            </button>
+            <button onclick="selectEmotion('anger', '억울함', '#F87171', '😤', '오해받거나 불공평한 마음')" class="emotion-btn glass-pill px-3 py-1.5 rounded-xl text-xs font-medium hover:text-red-300 border border-red-500/30">
+              😤 억울함
+            </button>
+            <button onclick="selectEmotion('ennui', '허탈함/무기력', '#A5B4FC', '🌫️', '에너지가 빠져나간 허무함')" class="emotion-btn glass-pill px-3 py-1.5 rounded-xl text-xs font-medium hover:text-indigo-300 border border-indigo-500/30">
+              🌫️ 허탈함
+            </button>
+            <button onclick="selectEmotion('fear', '실망감', '#C084FC', '💔', '기대가 무너졌을 때의 마음')" class="emotion-btn glass-pill px-3 py-1.5 rounded-xl text-xs font-medium hover:text-purple-300 border border-purple-500/30">
+              💔 실망감
+            </button>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center pt-2">
+          <button onclick="goToStep(1)" class="px-5 py-2.5 rounded-xl glass-pill text-xs md:text-sm font-semibold text-slate-300 hover:text-white">
+            이전
+          </button>
+          <button id="step2NextBtn" disabled onclick="goToStep(3)" class="px-6 py-2.5 rounded-xl bg-slate-700 text-slate-400 font-bold text-xs md:text-sm cursor-not-allowed transition">
+            다음 단계 <i class="fa-solid fa-chevron-right ml-1"></i>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 3: INTENSITY SELECTION -->
+      <section id="step3" class="w-full space-y-6 max-w-xl mx-auto hidden">
+        <div class="text-center space-y-2">
+          <span class="text-xs font-bold tracking-widest text-yellow-400 uppercase">Step 02 / 04</span>
+          <h2 class="text-2xl md:text-3xl font-extrabold text-white">감정의 소용돌이 크기(강도)를 선택하세요</h2>
+          <p class="text-xs md:text-sm text-slate-400">1단계(잔잔한 느낌)부터 5단계(폭발 직전/극심함)까지 선택해보세요.</p>
+        </div>
+
+        <div class="glass-card p-6 md:p-8 rounded-3xl space-y-8 text-center border border-white/20">
+          <!-- Dynamic Visual Orb Preview -->
+          <div class="relative w-32 h-32 mx-auto flex items-center justify-center">
+            <div id="intensityGlow" class="absolute inset-0 rounded-full bg-yellow-400 blur-2xl opacity-60 transition-all duration-300"></div>
+            <div id="intensityOrb" class="relative w-24 h-24 rounded-full glass-card flex items-center justify-center text-4xl shadow-2xl transition-all duration-300 transform scale-100 border-2 border-white/40">
+              <span id="selectedEmoji">😊</span>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div class="flex justify-between text-xs font-bold text-slate-400 px-2">
+              <span>1단계 (미미함)</span>
+              <span>3단계 (중간)</span>
+              <span>5단계 (폭발적)</span>
+            </div>
+            <input type="range" id="intensitySlider" min="1" max="5" value="3" oninput="updateIntensity(this.value)" class="w-full cursor-pointer accent-yellow-400">
+            <div class="p-3 rounded-xl bg-slate-800/80 border border-slate-700">
+              <span id="intensityText" class="text-sm font-bold text-yellow-300">3단계: 감정이 또렷하게 자각되는 상태</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <button onclick="goToStep(2)" class="px-5 py-2.5 rounded-xl glass-pill text-xs md:text-sm font-semibold text-slate-300 hover:text-white">
+            이전
+          </button>
+          <button onclick="goToStep(4)" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 font-bold text-xs md:text-sm hover:scale-105 active:scale-95 transition">
+            다음 단계 <i class="fa-solid fa-chevron-right ml-1"></i>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 4: SITUATION INPUT -->
+      <section id="step4" class="w-full space-y-6 max-w-2xl mx-auto hidden">
+        <div class="text-center space-y-2">
+          <span class="text-xs font-bold tracking-widest text-yellow-400 uppercase">Step 03 / 04</span>
+          <h2 class="text-2xl md:text-3xl font-extrabold text-white">마음 속 어떤 상황인지 편안하게 적어보세요</h2>
+          <p class="text-xs md:text-sm text-slate-400">상황을 솔직하게 적어주시면 AI가 상황에 꼭 맞는 고유 솔루션을 분석합니다.</p>
+        </div>
+
+        <div class="glass-card p-6 rounded-3xl space-y-4 border border-white/20">
+          <div class="flex items-center gap-3 pb-3 border-b border-slate-700/60">
+            <span id="step4EmotionBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-400/20 text-yellow-300 border border-yellow-400/40">
+              😊 기쁨이 (3단계)
+            </span>
+            <span class="text-xs text-slate-400">감정 본부 분석 대기 중</span>
+          </div>
+
+          <textarea id="situationInput" rows="5" placeholder="오늘 있었던 일이나 이 감정이 들게 된 이유를 자유롭게 적어보세요. (예: 오늘 팀 발표에서 작게 안 한 실수가 머릿속에 자꾸 맴돌아서 속상하고 후회돼요 / 시험이 드디어 끝나서 정말 후련하고 기뻐요!)" class="w-full bg-slate-900/70 border border-slate-700 rounded-2xl p-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition resize-none"></textarea>
+
+          <div class="flex items-center justify-between text-xs text-slate-400 px-1">
+            <span><i class="fa-solid fa-lock text-green-400 mr-1"></i> 개인정보는 어디에도 저장되지 않습니다.</span>
+            <span id="charCount">0 자</span>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <button onclick="goToStep(3)" class="px-5 py-2.5 rounded-xl glass-pill text-xs md:text-sm font-semibold text-slate-300 hover:text-white">
+            이전
+          </button>
+          <button onclick="generateSolution()" class="px-7 py-3 rounded-2xl bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 text-slate-950 font-black text-sm md:text-base shadow-lg hover:shadow-yellow-500/20 hover:scale-105 active:scale-95 transition flex items-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>감정 본부 솔루션 도출하기</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 5: CUSTOM SOLUTION CARDS & INTERACTIVE TOOLS -->
+      <section id="step5" class="w-full space-y-6 hidden">
+        <!-- Header summary banner -->
+        <div class="glass-card p-6 rounded-3xl border border-white/20 space-y-3 relative overflow-hidden">
+          <div id="solutionBannerGlow" class="absolute top-0 right-0 w-64 h-64 bg-yellow-400/20 rounded-full blur-3xl pointer-events-none"></div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span id="solutionEmoji" class="text-4xl p-2 rounded-2xl glass-pill">😊</span>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h2 id="solutionTitle" class="text-xl md:text-2xl font-black text-white">기쁨이의 맞춤 솔루션</h2>
+                  <span id="solutionIntensityBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-400/20 text-yellow-300 border border-yellow-400/30">강도 3단계</span>
+                </div>
+                <p id="solutionSubtitle" class="text-xs md:text-sm text-slate-300 mt-0.5">이 순간을 온전히 누리고 핵심 기억으로 간직하는 방법들입니다.</p>
+              </div>
+            </div>
+
+            <button onclick="goToStep(2)" class="px-3.5 py-1.5 rounded-xl glass-pill text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-rotate-left"></i> 다시 탐색하기
+            </button>
+          </div>
+
+          <!-- Dynamic AI Insight Message -->
+          <div id="aiAdviceBox" class="p-3.5 rounded-2xl bg-slate-800/90 border border-slate-700/80 text-xs md:text-sm text-slate-200 space-y-1">
+            <div class="font-bold text-yellow-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-robot"></i> AI 감정 분석관의 메시지:
+            </div>
+            <p id="aiAdviceContent" class="leading-relaxed text-slate-300">
+              분석 중입니다...
+            </p>
+          </div>
+        </div>
+
+        <!-- 5~7 Distinct Solutions Grid -->
+        <div class="space-y-3">
+          <h3 class="text-base font-bold text-slate-200 flex items-center justify-between">
+            <span><i class="fa-solid fa-list-check text-yellow-400 mr-2"></i> 감정 맞춤 실행 액션 (5~7가지):</span>
+            <span class="text-xs font-normal text-slate-400">* 감정의 특성에 따라 전혀 다르게 제공됩니다</span>
+          </h3>
+
+          <div id="solutionsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Dynamic Solution Cards Inserted Here via JS -->
+          </div>
+        </div>
+
+        <!-- Completion Button -->
+        <div class="text-center pt-4">
+          <button onclick="goToStep(6)" class="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-black text-sm md:text-base shadow-lg hover:shadow-emerald-500/20 hover:scale-105 active:scale-95 transition">
+            <i class="fa-solid fa-circle-check mr-2"></i> 감정 정리 완료 및 핵심 기억 생성
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 6: COMPLETION & CORE MEMORY ORB CREATION -->
+      <section id="step6" class="w-full text-center space-y-8 max-w-xl mx-auto hidden">
+        <div class="space-y-3">
+          <span class="text-xs font-bold tracking-widest text-emerald-400 uppercase">Complete!</span>
+          <h2 class="text-3xl font-black text-white">오늘의 핵심 기억 구슬이 완성되었습니다!</h2>
+          <p class="text-xs md:text-sm text-slate-300">당신이 마주한 모든 감정은 성장과 성찰의 귀중한 조각입니다.</p>
+        </div>
+
+        <!-- Core Memory Orb Animation Display -->
+        <div class="relative w-48 h-48 mx-auto my-6 flex items-center justify-center">
+          <div id="finalOrbGlow" class="absolute inset-0 rounded-full bg-yellow-400 blur-3xl opacity-70 animate-pulse"></div>
+          <div id="finalOrb" class="relative w-36 h-36 rounded-full glass-card flex flex-col items-center justify-center border-4 border-white/60 shadow-2xl animate-float cursor-pointer" onclick="saveToVault()">
+            <span id="finalOrbEmoji" class="text-5xl">✨</span>
+            <span id="finalOrbText" class="text-xs font-bold text-white mt-2 px-2 text-center line-clamp-1">기쁨의 기억</span>
+          </div>
+        </div>
+
+        <!-- Rating Feedback -->
+        <div class="glass-card p-5 rounded-2xl space-y-3">
+          <p class="text-xs font-bold text-slate-300">오늘의 감정 탐색이 도움이 되셨나요?</p>
+          <div class="flex justify-center gap-3">
+            <button onclick="rateFeedback('매우 도움됨')" class="glass-pill px-3.5 py-2 rounded-xl text-xs font-medium hover:bg-yellow-400/20 hover:text-yellow-300 border border-slate-700 transition">
+              🥰 마음이 가벼워짐
+            </button>
+            <button onclick="rateFeedback('보통')" class="glass-pill px-3.5 py-2 rounded-xl text-xs font-medium hover:bg-yellow-400/20 hover:text-yellow-300 border border-slate-700 transition">
+              🙂 보통이에요
+            </button>
+            <button onclick="rateFeedback('생각 정리됨')" class="glass-pill px-3.5 py-2 rounded-xl text-xs font-medium hover:bg-yellow-400/20 hover:text-yellow-300 border border-slate-700 transition">
+              💡 정리에 도움됨
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-center gap-3">
+          <button onclick="saveToVault()" class="px-6 py-3 rounded-xl bg-yellow-400 text-slate-950 font-bold text-xs md:text-sm hover:scale-105 active:scale-95 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-box-archive"></i>
+            <span>핵심 기억 창고에 보관하기</span>
+          </button>
+          <button onclick="goToStep(1)" class="px-6 py-3 rounded-xl glass-pill text-xs md:text-sm font-semibold text-slate-300 hover:text-white">
+            메인 화면으로 이동
+          </button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-4 border-t border-slate-800 text-xs text-slate-500 mt-6">
+      인사이드 아웃 감정 탐색기 &copy; 2026 Inside Out Headquarters Experience. All rights reserved.
+    </footer>
+
+  </div>
+
+  <!-- MEMORY VAULT MODAL -->
+  <div id="vaultModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-2xl rounded-3xl p-6 space-y-4 border border-white/20 max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-box-archive text-yellow-400"></i>
+          <span>감정 본부 핵심 기억 창고 (Core Memory Vault)</span>
+        </h3>
+        <button onclick="closeMemoryVault()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div id="vaultList" class="overflow-y-auto space-y-3 flex-grow pr-1">
+        <!-- Saved Memories inserted dynamically -->
+        <p class="text-slate-400 text-xs text-center py-8">아직 저장된 핵심 기억 구슬이 없습니다.</p>
+      </div>
+
+      <div class="pt-2 text-right">
+        <button onclick="closeMemoryVault()" class="px-4 py-2 rounded-xl glass-pill text-xs font-semibold text-slate-300 hover:text-white">
+          닫기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SINGLE MEMORY ORB DETAIL MODAL -->
+  <div id="orbDetailModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-md rounded-3xl p-6 space-y-5 border border-white/20 text-center relative overflow-hidden">
+      <div id="orbDetailGlow" class="absolute inset-0 blur-3xl opacity-30 pointer-events-none"></div>
+      
+      <div class="relative w-24 h-24 mx-auto rounded-full glass-card flex items-center justify-center border-2 border-white/50 shadow-2xl animate-float">
+        <span id="detailOrbEmoji" class="text-5xl">😊</span>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-center gap-2">
+          <h3 id="detailOrbTitle" class="text-xl font-black text-white">기쁨의 기억 구슬</h3>
+          <span id="detailOrbBadge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-yellow-300 border border-slate-700">3단계</span>
+        </div>
+        <p id="detailOrbDate" class="text-xs text-slate-400">2026. 09. 22</p>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-900/80 border border-slate-700 text-left space-y-1">
+        <span class="text-[11px] font-bold text-slate-400">당시 적었던 상황 내용:</span>
+        <p id="detailOrbSituation" class="text-xs text-slate-200 leading-relaxed max-h-32 overflow-y-auto">상황 내용이 없습니다.</p>
+      </div>
+
+      <button onclick="closeOrbDetailModal()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 font-bold text-xs hover:scale-105 active:scale-95 transition">
+        확인함
+      </button>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 glass-card px-5 py-3 rounded-2xl text-xs md:text-sm font-semibold text-white flex items-center gap-2 border border-yellow-400/40 shadow-xl">
+    <i class="fa-solid fa-circle-check text-yellow-400"></i>
+    <span id="toastMsg">메시지</span>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // Global State Manager
+    let currentState = {
+      step: 1,
+      emotionKey: 'joy',
+      emotionName: '기쁨이',
+      color: '#FACC15',
+      emoji: '😊',
+      desc: '빛나는 기쁨과 환희',
+      intensity: 3,
+      situation: '',
+      savedMemories: []
+    };
+
+    // Full Screen Floating Memory Orbs Physics Array
+    let floatingOrbsData = [];
+    let isOrbPhysicsRunning = false;
+
+    // --- NAVIGATION & STEP CONTROL ---
+    function goToStep(stepNum) {
+      currentState.step = stepNum;
+      for (let i = 1; i <= 6; i++) {
+        const el = document.getElementById(`step${i}`);
+        if (el) el.classList.add('hidden');
+      }
+      const target = document.getElementById(`step${stepNum}`);
+      if (target) {
+        target.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      // Sync floating memory orbs when navigation changes
+      renderHomepageFloatingOrbs();
+    }
+    window.goToStep = goToStep;
+
+    // --- FULL SCREEN FLOATING MEMORY ORBS ENGINE ---
+    function renderHomepageFloatingOrbs() {
+      const container = document.getElementById('globalFloatingOrbsContainer');
+      const bannerText = document.getElementById('floatingOrbBannerText');
+      if (!container) return;
+
+      container.innerHTML = '';
+      floatingOrbsData = [];
+
+      if (currentState.savedMemories.length === 0) {
+        if (bannerText) bannerText.innerText = "감정을 탐색하고 구슬을 저장하면 화면에 구슬들이 자유롭게 두둥실 떠다녀요!";
+        return;
+      }
+
+      if (bannerText) bannerText.innerText = `총 ${currentState.savedMemories.length}개의 핵심 기억 구슬이 화면 전체를 두둥실 떠다니고 있어요! (클릭 시 내용 확인)`;
+
+      const screenW = window.innerWidth;
+      const screenH = window.innerHeight;
+
+      // Create interactive floating nodes across the entire screen
+      currentState.savedMemories.forEach((m, idx) => {
+        const orbEl = document.createElement('div');
+        orbEl.className = "group absolute cursor-pointer flex flex-col items-center justify-center pointer-events-auto select-none transition-transform hover:scale-125 z-30";
+        
+        orbEl.onclick = (e) => {
+          e.stopPropagation();
+          showOrbDetailsModal(m);
+        };
+
+        orbEl.innerHTML = `
+          <div class="relative w-16 h-16 md:w-20 md:h-20 rounded-full glass-card flex flex-col items-center justify-center border-2 border-white/70 shadow-2xl transition duration-300"
+               style="background: radial-gradient(circle, ${m.color}cc 0%, rgba(15,23,42,0.85) 100%); box-shadow: 0 0 30px ${m.color}aa;">
+            <span class="text-2xl md:text-3xl transform group-hover:scale-125 transition duration-200">${m.emoji}</span>
+            <span class="text-[10px] font-black text-white mt-0.5 line-clamp-1 max-w-[55px] text-center drop-shadow">${m.emotion}</span>
+          </div>
+          <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute -bottom-7 bg-slate-900/95 text-white text-[10px] px-2.5 py-1 rounded-full border border-slate-700 whitespace-nowrap shadow-xl pointer-events-none z-40">
+            ${m.date} · ${m.situation ? m.situation.substring(0, 12) + '...' : '핵심 기억'}
+          </div>
+        `;
+
+        container.appendChild(orbEl);
+
+        // Random initial coordinates spread across full screen
+        const radius = 40;
+        const x = Math.random() * (screenW - radius * 2) + radius;
+        const y = Math.random() * (screenH - radius * 2) + radius;
+        // Smooth random velocity
+        const vx = (Math.random() - 0.5) * 1.2;
+        const vy = (Math.random() - 0.5) * 1.2;
+
+        floatingOrbsData.push({
+          element: orbEl,
+          x: x,
+          y: y,
+          vx: vx === 0 ? 0.8 : vx,
+          vy: vy === 0 ? 0.8 : vy,
+          radius: radius,
+          isHovered: false
+        });
+
+        // Pause individual movement on hover for easy clicking
+        orbEl.onmouseenter = () => { floatingOrbsData[idx].isHovered = true; };
+        orbEl.onmouseleave = () => { floatingOrbsData[idx].isHovered = false; };
+      });
+
+      // Start full-screen animation loop if not already running
+      if (!isOrbPhysicsRunning && floatingOrbsData.length > 0) {
+        isOrbPhysicsRunning = true;
+        requestAnimationFrame(animateGlobalFloatingOrbs);
+      }
+    }
+    window.renderHomepageFloatingOrbs = renderHomepageFloatingOrbs;
+
+    function animateGlobalFloatingOrbs() {
+      if (floatingOrbsData.length === 0) {
+        isOrbPhysicsRunning = false;
+        return;
+      }
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      floatingOrbsData.forEach(orb => {
+        if (!orb.isHovered) {
+          orb.x += orb.vx;
+          orb.y += orb.vy;
+
+          // Bounce off screen borders smoothly
+          if (orb.x <= 10 || orb.x >= w - 80) orb.vx *= -1;
+          if (orb.y <= 10 || orb.y >= h - 80) orb.vy *= -1;
+        }
+
+        // Apply updated positions directly to viewport coordinates
+        orb.element.style.transform = `translate3d(${orb.x}px, ${orb.y}px, 0)`;
+      });
+
+      requestAnimationFrame(animateGlobalFloatingOrbs);
+    }
+
+    // --- SHOW ORB DETAILS MODAL ---
+    function showOrbDetailsModal(m) {
+      document.getElementById('detailOrbEmoji').innerText = m.emoji;
+      document.getElementById('detailOrbTitle').innerText = `${m.emotion} 기억 구슬`;
+      document.getElementById('detailOrbBadge').innerText = `${m.intensity}단계`;
+      document.getElementById('detailOrbDate').innerText = m.date;
+      document.getElementById('detailOrbSituation').innerText = m.situation || '작성된 상황 내용이 없습니다.';
+      document.getElementById('orbDetailGlow').style.backgroundColor = m.color;
+
+      document.getElementById('orbDetailModal').classList.remove('hidden');
+    }
+    window.showOrbDetailsModal = showOrbDetailsModal;
+
+    function closeOrbDetailModal() {
+      document.getElementById('orbDetailModal').classList.add('hidden');
+    }
+    window.closeOrbDetailModal = closeOrbDetailModal;
+
+    // --- STEP 2: EMOTION SELECTION LOGIC ---
+    function selectEmotion(key, name, color, emoji, desc, targetBtn) {
+      currentState.emotionKey = key;
+      currentState.emotionName = name;
+      currentState.color = color;
+      currentState.emoji = emoji;
+      currentState.desc = desc;
+
+      // Highlight selected button
+      document.querySelectorAll('.emotion-btn').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-white', 'scale-105');
+      });
+
+      const activeEl = targetBtn || (typeof window !== 'undefined' && window.event ? window.event.currentTarget : null);
+      if (activeEl && activeEl.classList) {
+        activeEl.classList.add('ring-2', 'ring-white', 'scale-105');
+      }
+
+      // Enable Step 2 Next Button
+      const nextBtn = document.getElementById('step2NextBtn');
+      if (nextBtn) {
+        nextBtn.disabled = false;
+        nextBtn.className = "px-6 py-2.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 font-bold text-xs md:text-sm hover:scale-105 active:scale-95 transition cursor-pointer";
+      }
+
+      // Sync Step 3 Preview
+      const previewEmoji = document.getElementById('selectedEmoji');
+      if (previewEmoji) previewEmoji.innerText = emoji;
+      const previewGlow = document.getElementById('intensityGlow');
+      if (previewGlow) previewGlow.style.backgroundColor = color;
+    }
+    window.selectEmotion = selectEmotion;
+
+    // Initialize DOM-dependent modules safely on load
+    window.addEventListener('DOMContentLoaded', () => {
+      // Background Canvas Animation
+      const canvas = document.getElementById('orbCanvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        let orbs = [];
+
+        function resizeCanvas() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Orb {
+          constructor() {
+            this.reset();
+          }
+          reset() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.radius = Math.random() * 18 + 8;
+            this.vx = (Math.random() - 0.5) * 0.6;
+            this.vy = (Math.random() - 0.5) * 0.6;
+            const colors = ['#FACC15', '#3B82F6', '#EF4444', '#A855F7', '#10B981', '#F97316', '#EC4899', '#C084FC'];
+            this.color = colors[Math.floor(Math.random() * colors.length)];
+            this.alpha = Math.random() * 0.4 + 0.15;
+          }
+          update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.x < -20) this.x = canvas.width + 20;
+            if (this.x > canvas.width + 20) this.x = -20;
+            if (this.y < -20) this.y = canvas.height + 20;
+            if (this.y > canvas.height + 20) this.y = -20;
+          }
+          draw() {
+            ctx.beginPath();
+            const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
+            grad.addColorStop(0, 'rgba(255,255,255,0.8)');
+            grad.addColorStop(0.4, this.color);
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        for (let i = 0; i < 25; i++) {
+          orbs.push(new Orb());
+        }
+
+        function animateOrbs() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          orbs.forEach(orb => {
+            orb.update();
+            orb.draw();
+          });
+          requestAnimationFrame(animateOrbs);
+        }
+        animateOrbs();
+      }
+
+      // Initialize homepage floating memory orbs on load
+      renderHomepageFloatingOrbs();
+
+      // Situation Character Counter Listener
+      const sitInput = document.getElementById('situationInput');
+      if (sitInput) {
+        sitInput.addEventListener('input', function() {
+          const charCount = document.getElementById('charCount');
+          if (charCount) charCount.innerText = `${this.value.length} 자`;
+          currentState.situation = this.value;
+        });
+      }
+    });
+
+    // --- STEP 3: INTENSITY SLIDER ---
+    function updateIntensity(val) {
+      currentState.intensity = parseInt(val);
+      const orb = document.getElementById('intensityOrb');
+      const text = document.getElementById('intensityText');
+
+      if (orb) {
+        const scale = 0.8 + (val * 0.1);
+        orb.style.transform = `scale(${scale})`;
+      }
+
+      const textMap = {
+        1: "1단계: 아주 잔잔하고 미미하게 스쳐가는 상태",
+        2: "2단계: 약간 신경 쓰이고 계속 의식되는 상태",
+        3: "3단계: 또렷하게 느껴지며 생각에 영향을 주는 상태",
+        4: "4단계: 마음 속이 꽤 크게 흔들리고 고조된 상태",
+        5: "5단계: 감정 본부를 온통 휩쓰는 폭발 직전 상태"
+      };
+      if (text) text.innerText = textMap[val];
+    }
+    window.updateIntensity = updateIntensity;
+
+    // --- EMOTION SPECIFIC SOLUTIONS DATABASE (Strictly Distinct 5-7 Solutions per Emotion) ---
+    const EMOTION_SOLUTIONS_DB = {
+      // 1. JOY (기쁨)
+      joy: [
+        {
+          id: 'joy_1',
+          title: '📸 기쁨의 순간 타임캡슐화',
+          desc: '지금의 미소와 기분 좋은 소식을 감정 본부 노트에 기록하여 평생 소장해 보세요.',
+          toolType: 'input',
+          placeholder: '오늘 날 웃게 만든 결정적 순간 한 줄 적기...'
+        },
+        {
+          id: 'joy_2',
+          title: '✨ 핵심 기억(Core Memory)으로 정식 등록',
+          desc: '이 기쁨을 영구 기억 창고에 전송합니다.',
+          toolType: 'button',
+          btnText: '빛나는 기쁨 구슬 보관함 저장하기',
+          action: () => showToast('✨ 황금빛 기쁨 구슬이 저장되었습니다!')
+        },
+        {
+          id: 'joy_3',
+          title: '💌 기쁨과 감사 나누기',
+          desc: '소중한 친구나 가족에게 기쁜 소식을 전하거나 고마움을 표해보세요.',
+          toolType: 'info',
+          infoText: '💡 기쁨은 나누면 배가 됩니다! 가까운 사람에게 문자 한 통 보내보세요.'
+        },
+        {
+          id: 'joy_4',
+          title: '🎁 나를 위한 셀프 축하 선물',
+          desc: '수고한 나를 위해 아주 소소한 디저트나 좋아하는 음료 한 잔을 선물하세요.',
+          toolType: 'info',
+          infoText: '☕ 오늘 퇴근/하교길에 내가 제일 좋아하는 음료 주문하기!'
+        },
+        {
+          id: 'joy_5',
+          title: '💃 신체로 기쁨 표현하기 (10초 댄스)',
+          desc: '몸을 가볍게 두드리거나 어깨를 으쓱하며 긍정적 신체 에너지를 고조시키세요.',
+          toolType: 'info',
+          infoText: '🎵 가볍게 손뼉을 치거나 좋아하는 노래 한 구절을 크게 불러보세요!'
+        },
+        {
+          id: 'joy_6',
+          title: '🎧 기쁨의 시그니처 플레이리스트 만들기',
+          desc: '이 기분을 최고조로 끌어올릴 음악을 기록해보세요.',
+          toolType: 'input',
+          placeholder: '지금 들으면 신나는 노래 제목...'
+        }
+      ],
+
+      // 2. REGRET & GUILT (후회 및 자책)
+      regret: [
+        {
+          id: 'regret_1',
+          title: '⚖️ 내가 통제할 수 있었던 것 vs 없었던 것 구별하기',
+          desc: '지나간 상황 중 내 힘으로 어쩔 수 없었던 외부 요소와 내 행동을 냉정하게 구분해보세요.',
+          toolType: 'input',
+          placeholder: '내 통제 밖이었던 상황 적기 (예: 타인의 반응, 날씨, 예기치 못한 변수...)'
+        },
+        {
+          id: 'regret_2',
+          title: '🪞 나의 자존감 회복: 나의 진짜 장점 3가지 적기',
+          desc: '한 번의 실수로 나의 전체 가치가 깎이지 않습니다. 나만의 변함없는 장점을 떠올려보세요.',
+          toolType: 'input',
+          placeholder: '나의 소중한 장점 3가지 (예: 약속을 잘 지킴, 다정함, 책임감...)'
+        },
+        {
+          id: 'regret_3',
+          title: '🕊️ 과거의 나에게 보내는 다정한 용서의 편지',
+          desc: '그 순간의 나도 최선을 다했음을 인정하고 따뜻한 위로의 문장을 적어보세요.',
+          toolType: 'input',
+          placeholder: '“괜찮아, 그땐 최선을 다했어. 다음엔 더 잘할 수 있어.”'
+        },
+        {
+          id: 'regret_4',
+          title: '💡 이번 경험에서 건져올린 단 하나의 "배움"',
+          desc: '후회를 자책으로 끝내지 않고 미래의 나를 지켜줄 자산으로 전환합니다.',
+          toolType: 'input',
+          placeholder: '이 사건을 통해 내가 깨달은 배움 한 가지...'
+        },
+        {
+          id: 'regret_5',
+          title: '🫂 자기자비(Self-Compassion) 호흡',
+          desc: '가슴 위에 손을 얹고, 나에게 친한 친구에게 해줄 다정한 말을 스스로에게 건네세요.',
+          toolType: 'info',
+          infoText: '🫁 가슴에 손을 얹고 깊게 숨을 마시며 "나에게 다정해지겠습니다"라고 읊조리세요.'
+        },
+        {
+          id: 'regret_6',
+          title: '🔄 관점 전환(Reframing) 연습',
+          desc: '‘내가 왜 그랬을까’ 대신 ‘앞으로 어떻게 보완할까’로 질문을 바꾸세요.',
+          toolType: 'info',
+          infoText: '🔍 과거의 과거형 질문을 미래의 해결형 질문으로 바꾸는 시도입니다.'
+        }
+      ],
+
+      // 3. ANGER (버럭 / 화남)
+      anger: [
+        {
+          id: 'anger_1',
+          title: '🫁 4-7-8 분노 조절 긴급 타이머',
+          desc: '신체 자율신경계를 안정시키는 과학적인 4-7-8 호흡법으로 열감을 낮춥니다.',
+          toolType: 'timer_478'
+        },
+        {
+          id: 'anger_2',
+          title: '🔥 부치지 않을 편지 쓰고 "마음껏 분쇄하기"',
+          desc: '속상한 심정을 필터링 없이 적은 후 시원하게 화면 속에서 찢어 없애세요.',
+          toolType: 'shredder'
+        },
+        {
+          id: 'anger_3',
+          title: '🧊 신체 센서리 리셋 (얼음물/손 씻기)',
+          desc: '차가운 물로 손을 씻거나 얼굴을 감싸 분노 회로를 물리적으로 단절시키세요.',
+          toolType: 'info',
+          infoText: '💧 차가운 물로 손을 30초간 씻으며 자극에 집중해 보세요.'
+        },
+        {
+          id: 'anger_4',
+          title: '⏸️ 10초 카운트다운 멈춤',
+          desc: '감정 폭발 전 반응을 늦추기 위해 10부터 1까지 천천히 세어보세요.',
+          toolType: 'countdown'
+        },
+        {
+          id: 'anger_5',
+          title: '🏃 빠른 발걸음으로 신체 에너지 배출',
+          desc: '분노로 분비된 아드레날린을 5분간의 빠른 산책이나 스트레칭으로 소모하세요.',
+          toolType: 'info',
+          infoText: '👟 자리에서 일어나 가볍게 스쿼트를 하거나 제자리걸음을 해보세요!'
+        }
+      ],
+
+      // 4. ANXIETY (불안)
+      anxiety: [
+        {
+          id: 'anxiety_1',
+          title: '👁️ 5-4-3-2-1 감각 그라운딩 기법',
+          desc: '머릿속 불안에서 탈출하여 현재의 감각으로 현실에 뿌리내리세요.',
+          toolType: 'grounding'
+        },
+        {
+          id: 'anxiety_2',
+          title: '📝 브레인 덤프 & 실제 일어날 확률 계산기',
+          desc: '불안한 상상을 적고, 그것이 실제로 일어날 확률을 냉정하게 숫자로 써보세요.',
+          toolType: 'input',
+          placeholder: '걱정되는 일 적기 (실제 일어날 확률: 예: 5%)'
+        },
+        {
+          id: 'anxiety_3',
+          title: '💪 점진적 근육 이완법',
+          desc: '양 주먹을 5초간 세게 쥐었다가 한 번에 힘을 쫙 풀며 이완감을 느껴보세요.',
+          toolType: 'info',
+          infoText: '✊ 주먹을 세게 쥐세요 (5, 4, 3, 2, 1) -> ✋ 툭 풀고 온몸 이완!'
+        },
+        {
+          id: 'anxiety_4',
+          title: '⚡ 지금 당장 할 수 있는 가장 작은 1가지 행동',
+          desc: '불안은 통제력 상실에서 옵니다. 아주 쉬운 액션 한 가지를 실행해보세요.',
+          toolType: 'input',
+          placeholder: '당장 할 수 있는 일 (예: 물 한 잔 마시기, 책상 정돈...)'
+        },
+        {
+          id: 'anxiety_5',
+          title: '☕ 따뜻한 온도로 감각 안돈시키기',
+          desc: '따뜻한 차를 마시거나 온열 팩으로 체온을 올리면 불안 신경이 완화됩니다.',
+          toolType: 'info',
+          infoText: '🍵 양손으로 따뜻한 컵을 감싸고 온도 감각에만 집중하세요.'
+        }
+      ],
+
+      // 5. SADNESS (슬픔)
+      sadness: [
+        {
+          id: 'sadness_1',
+          title: '🌧️ 슬픔 허용 세션 (충분히 슬퍼하기)',
+          desc: '억지로 참지 말고 5분간 슬픔의 감정을 온전히 수용해주세요.',
+          toolType: 'info',
+          infoText: '🫂 눈물이 나면 흘려보내고, 따뜻한 담요를 감싸 안아주세요.'
+        },
+        {
+          id: 'sadness_2',
+          title: '💬 슬픔이 캐릭터와 마음 대화',
+          desc: '슬픔이에게 속마음을 솔직하게 털어놓아 보세요.',
+          toolType: 'input',
+          placeholder: '슬픔이야, 나 지금 너무 슬프고 힘들어...'
+        },
+        {
+          id: 'sadness_3',
+          title: '☕ 위로가 되는 문장 읽기',
+          desc: '슬픔의 파도가 자연스럽게 비켜갈 때까지 나를 토닥여주는 문장입니다.',
+          toolType: 'info',
+          infoText: '📖 "비가 온 뒤에 땅이 굳듯, 지금의 눈물은 마음을 씻어내는 과정입니다."'
+        },
+        {
+          id: 'sadness_4',
+          title: '🛋️ 안전하고 안락한 공간 조성',
+          desc: '조명을 낮추고 조용한 스탠드 불빛 아래에서 편안하게 휴식하세요.',
+          toolType: 'info',
+          infoText: '🕯️ 좋아하는 향이나 다정한 음색의 음악을 작게 틀어두세요.'
+        },
+        {
+          id: 'sadness_5',
+          title: '🤝 신뢰하는 사람에게 털어놓기',
+          desc: '혼자 짊어지지 말고 내 마음을 잘 들어줄 한 사람에게 마음을 표해보세요.',
+          toolType: 'info',
+          infoText: '📞 "나 오늘 조금 우울한데 이야기 좀 들어줄 수 있어?"'
+        }
+      ],
+
+      // 6. ENNUI (따분 / 무기력)
+      ennui: [
+        {
+          id: 'ennui_1',
+          title: '🎲 5분 무작위 미니 챌린지 룰렛',
+          desc: '일상에 뇌를 깨울 신선한 자극을 줍니다.',
+          toolType: 'roulette'
+        },
+        {
+          id: 'ennui_2',
+          title: '🎨 무작위 핑거 낙서 캔버스',
+          desc: '아무 의미 없는 선이나 그림을 자유롭게 그려 뇌를 리프레시하세요.',
+          toolType: 'doodle_canvas'
+        },
+        {
+          id: 'ennui_3',
+          title: '🎶 완전히 새로운 장르 음악 3곡 듣기',
+          desc: '평소 안 듣던 로파이, 재즈, 인디 곡을 재생해보세요.',
+          toolType: 'info',
+          infoText: '🎧 뇌의 새로운 신경 회로를 자극하는 가장 쉬운 방법입니다.'
+        },
+        {
+          id: 'ennui_4',
+          title: '🪑 주변 공간 물건 하나 위치 바꾸기',
+          desc: '책상 위 소품 하나의 위치를 바꿔 시각적 새로움을 부여해보세요.',
+          toolType: 'info',
+          infoText: '👀 작은 환경 변화가 무기력한 관성을 깨뜨립니다.'
+        },
+        {
+          id: 'ennui_5',
+          title: '🚶 안 가본 길 10분 산책',
+          desc: '항상 지나치던 길이 아닌 옆 골목으로 걸어보세요.',
+          toolType: 'info',
+          infoText: '👟 낯선 풍경을 접할 때 뇌에서 도파민이 새롭게 분비됩니다.'
+        }
+      ],
+
+      // 7. EMBARRASSMENT (당황 / 부끄러움)
+      embarrassment: [
+        {
+          id: 'embarrassment_1',
+          title: '⏳ "5년 뒤에도 이게 정말 중요할까?" 질문하기',
+          desc: '시간의 지평을 넓혀 현재 사건의 무게감을 가볍게 만드세요.',
+          toolType: 'info',
+          infoText: '🕰️ 5년 뒤의 나는 오늘 일을 그저 웃긴 해프닝으로 기억할 것입니다.'
+        },
+        {
+          id: 'embarrassment_2',
+          title: '🤝 실수 정상화 선언',
+          desc: '누구나 하루에 한 번은 당황스러운 실수를 한다는 점을 인정하세요.',
+          toolType: 'button',
+          btnText: '“인간이라 괜찮아!” 실수 선언 클릭',
+          action: () => showToast('😅 누구나 실수합니다! 완벽할 필요 없어요.')
+        },
+        {
+          id: 'embarrassment_3',
+          title: '🐕 Shake It Off! (신체 털어내기)',
+          desc: '강아지가 몸을 털듯 어깨와 손털기를 5초간 진행해 민망함을 털어내세요.',
+          toolType: 'info',
+          infoText: '🐕 몸을 탈탈 털며 긴장된 근육을 이완시켜주세요!'
+        },
+        {
+          id: 'embarrassment_4',
+          title: '🤣 상황을 유머러스하게 재해석하기',
+          desc: '나중에 친구들에게 신나게 풀어놓을 코미디 에피소드로 재구성하세요.',
+          toolType: 'input',
+          placeholder: '이 사건의 웃긴 토크 주제 제목 만들기...'
+        }
+      ],
+
+      // 8. ENVY (부럼 / 질투)
+      envy: [
+        {
+          id: 'envy_1',
+          title: '🧭 질투를 내 숨은 욕구(Desire)의 지도표로 해석',
+          desc: '남이 부러운 이유는 내 깊은 곳에 그 가치를 갈망하기 때문입니다.',
+          toolType: 'input',
+          placeholder: '내가 그 사람에게서 진짜 갖고 싶었던 가치는? (예: 자유, 인정, 여유)'
+        },
+        {
+          id: 'envy_2',
+          title: '💎 내가 이미 가진 보물 3가지 적기',
+          desc: '타인의 하이라이트와 나의 비하인드를 비교하지 말고 내 자산을 세어보세요.',
+          toolType: 'input',
+          placeholder: '내가 이미 누리고 있는 가치/장점 3가지...'
+        },
+        {
+          id: 'envy_3',
+          title: '🏎️ 내 레인(Lane) 집중 다짐',
+          desc: '남의 트랙을 보느라 내 페이스를 잃지 마세요. 내 목표만 바라봅니다.',
+          toolType: 'info',
+          infoText: '🏁 나는 나만의 속도로 나만의 목적지로 향하고 있습니다.'
+        }
+      ],
+
+      // 9. DISGUST (까칠 / 거부감)
+      disgust: [
+        {
+          id: 'disgust_1',
+          title: '🛡️ 나만의 경계선(Boundary) 설정하기',
+          desc: '내가 불쾌하게 느낀 선이 어디까지인지 명확히 파악하고 나를 보호하세요.',
+          toolType: 'input',
+          placeholder: '내가 침해받고 싶지 않은 명확한 기준...'
+        },
+        {
+          id: 'disgust_2',
+          title: '🧹 감정 및 환경 정화 작업',
+          desc: '시각적, 청각적으로 나를 자극하던 요소로부터 물리적으로 멀어지세요.',
+          toolType: 'info',
+          infoText: '🧼 창문을 열어 환기하고, 자극적인 매체나 상황에서 잠시 이탈하세요.'
+        },
+        {
+          id: 'disgust_3',
+          title: '💬 우아한 거절 멘트 준비하기',
+          desc: '내 에너지를 갉아먹는 상황에 대해 정중하게 거절하는 말을 다듬으세요.',
+          toolType: 'input',
+          placeholder: '“죄송하지만 이번에는 어려울 것 같습니다.”'
+        }
+      ],
+
+      // 10. FEAR (소심 / 두려움)
+      fear: [
+        {
+          id: 'fear_1',
+          title: '🔍 진짜 위험 vs 뇌가 만들어낸 가짜 위험 판별',
+          desc: '실제 생명의 위협인지, 아니면 과장된 상상인지 구분해보세요.',
+          toolType: 'input',
+          placeholder: '최악의 결과는 무엇이며, 내가 대비할 수 있는 대안은?'
+        },
+        {
+          id: 'fear_2',
+          title: '🛡️ 용기의 5초 카운트다운 (5-4-3-2-1 Go)',
+          desc: '생각이 꼬리를 물기 전에 5초를 세고 작은 용기의 발걸음을 떼어보세요.',
+          toolType: 'button',
+          btnText: '5초 카운트다운 시작!',
+          action: () => start5SecCountdown()
+        },
+        {
+          id: 'fear_3',
+          title: '🏰 나의 안전지대(Safe Zone) 시각화',
+          desc: '내가 세상에서 가장 안전하고 편안함을 느끼는 장소를 머릿속에 그리세요.',
+          toolType: 'info',
+          infoText: '🏡 따뜻한 내 방 침대 속 편안한 분위기를 떠올려 보세요.'
+        }
+      ]
+    };
+
+    // --- GENERATE SOLUTIONS & GEMINI API INTEGRATION ---
+    async function generateSolution() {
+      goToStep(5);
+
+      // Render Header Sync
+      document.getElementById('solutionEmoji').innerText = currentState.emoji;
+      document.getElementById('solutionTitle').innerText = `${currentState.emotionName} 맞춤 솔루션`;
+      document.getElementById('solutionIntensityBadge').innerText = `강도 ${currentState.intensity}단계`;
+      document.getElementById('solutionSubtitle').innerText = `${currentState.desc} - 감정 상태에 딱 맞는 고유 액션 리스트입니다.`;
+
+      // Set Banner Glow Color
+      document.getElementById('solutionBannerGlow').style.backgroundColor = currentState.color;
+
+      // 1. Render Local Database Solutions (Immediate & Fallback Guaranteed)
+      renderSolutionCards();
+
+      // 2. Call Gemini API for Dynamic Situation Context Analysis
+      fetchGeminiAdvice();
+    }
+    window.generateSolution = generateSolution;
+
+    function renderSolutionCards() {
+      const container = document.getElementById('solutionsGrid');
+      container.innerHTML = '';
+
+      // Fallback key matching
+      let key = currentState.emotionKey;
+      if (!EMOTION_SOLUTIONS_DB[key]) key = 'joy';
+
+      const solutionList = EMOTION_SOLUTIONS_DB[key];
+
+      solutionList.forEach((sol, index) => {
+        const card = document.createElement('div');
+        card.className = "glass-card p-5 rounded-3xl border border-white/15 hover:border-white/30 transition space-y-3 flex flex-col justify-between";
+
+        let toolHtml = '';
+        if (sol.toolType === 'input') {
+          toolHtml = `
+            <div class="space-y-2 pt-2">
+              <input type="text" id="tool_input_${sol.id}" placeholder="${sol.placeholder}" class="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-yellow-400">
+              <button onclick="saveToolInput('${sol.id}', '${sol.title}')" class="w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-yellow-300 font-semibold border border-slate-700 transition">
+                작성 내용 저장하기
+              </button>
+            </div>
+          `;
+        } else if (sol.toolType === 'button') {
+          toolHtml = `
+            <div class="pt-2">
+              <button id="btn_${sol.id}" class="w-full py-2 rounded-xl bg-gradient-to-r from-yellow-400/20 to-amber-500/20 hover:from-yellow-400/30 hover:to-amber-500/30 text-xs font-bold text-yellow-300 border border-yellow-400/40 transition">
+                ${sol.btnText}
+              </button>
+            </div>
+          `;
+        } else if (sol.toolType === 'info') {
+          toolHtml = `
+            <div class="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs text-slate-300">
+              ${sol.infoText}
+            </div>
+          `;
+        } else if (sol.toolType === 'timer_478') {
+          toolHtml = `
+            <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-700 text-center space-y-2">
+              <div id="timerDisplay" class="text-2xl font-black text-red-400">4-7-8 호흡 시작</div>
+              <button onclick="start478Timer()" class="px-4 py-1.5 rounded-xl bg-red-500/20 text-red-300 text-xs font-bold border border-red-500/40 hover:bg-red-500/30 transition">
+                호흡 타이머 실행
+              </button>
+            </div>
+          `;
+        } else if (sol.toolType === 'shredder') {
+          toolHtml = `
+            <div class="space-y-2 pt-1">
+              <textarea id="shredText" rows="2" placeholder="속상하고 화나는 마음을 마음껏 적으세요..." class="w-full bg-slate-900/80 border border-slate-700 rounded-xl p-2 text-xs text-white placeholder-slate-500 focus:outline-none"></textarea>
+              <button onclick="shredPaper()" class="w-full py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow transition flex items-center justify-center gap-1">
+                <i class="fa-solid fa-fire"></i> 마음껏 분쇄하고 지우기
+              </button>
+            </div>
+          `;
+        } else if (sol.toolType === 'grounding') {
+          toolHtml = `
+            <div class="space-y-1.5 text-xs text-slate-300 bg-slate-900/60 p-3 rounded-2xl border border-slate-700">
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="accent-orange-400"> 👀 보이는 것 5가지 확인</label>
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="accent-orange-400"> 🖐️ 만져지는 것 4가지 촉각</label>
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="accent-orange-400"> 👂 들리는 소리 3가지 집중</label>
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="accent-orange-400"> 👃 냄새 2가지 느끼기</label>
+              <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="accent-orange-400"> 👅 맛 1가지 인식</label>
+            </div>
+          `;
+        } else if (sol.toolType === 'roulette') {
+          toolHtml = `
+            <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-700 text-center space-y-2">
+              <div id="rouletteResult" class="text-xs font-bold text-indigo-300">버튼을 눌러 5분 미션 뽑기!</div>
+              <button onclick="spinRoulette()" class="px-4 py-1.5 rounded-xl bg-indigo-500/20 text-indigo-300 text-xs font-bold border border-indigo-500/40 hover:bg-indigo-500/30 transition">
+                🎲 미션 룰렛 돌리기
+              </button>
+            </div>
+          `;
+        } else if (sol.toolType === 'doodle_canvas') {
+          toolHtml = `
+            <div class="space-y-2">
+              <canvas id="doodleCanvas" width="280" height="100" class="bg-slate-950 rounded-xl border border-slate-700 mx-auto cursor-crosshair w-full"></canvas>
+              <button onclick="clearDoodle()" class="w-full py-1 rounded-xl bg-slate-800 text-[11px] text-slate-400 hover:text-white">
+                캔버스 지우기
+              </button>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="space-y-2">
+            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+              Solution 0${index + 1}
+            </span>
+            <h4 class="font-black text-sm md:text-base text-white">${sol.title}</h4>
+            <p class="text-xs text-slate-300 leading-relaxed">${sol.desc}</p>
+          </div>
+          ${toolHtml}
+        `;
+
+        container.appendChild(card);
+
+        // Bind button actions if any
+        if (sol.toolType === 'button' && sol.action) {
+          const btn = document.getElementById(`btn_${sol.id}`);
+          if (btn) btn.onclick = sol.action;
+        }
+      });
+
+      // Init doodle canvas if present
+      setTimeout(initDoodleCanvas, 100);
+    }
+
+    // --- GEMINI API CALL FOR DYNAMIC AI ADVICE ---
+    async function fetchGeminiAdvice() {
+      const adviceContent = document.getElementById('aiAdviceContent');
+      adviceContent.innerText = "감정 본부 AI 분석관이 작성하신 상황을 깊이 분석하고 있습니다...";
+
+      const prompt = `
+      너는 영화 <인사이드 아웃>의 감정 본부(Headquarters) 마인드 코치야.
+      유저의 감정: ${currentState.emotionName} (강도: ${currentState.intensity}/5단계)
+      유저의 상황 내용: "${currentState.situation || '특별한 설명 없이 감정 상태를 선택함'}"
+
+      요청사항:
+      1. 유저의 감정을 깊이 공감해주는 따뜻한 2줄 메시지를 작성해줘.
+      2. 이 감정이 왜 자연스러운 것인지, 그리고 이 상황을 이겨내거나 온전히 느끼기 위한 아주 구체적인 조언 1가지를 친근하고 따뜻한 말투로 말해줘.
+      3. 존댓말로 작성하고 3문장 이내로 명확하게 작성해줘.
+      `;
+
+      try {
+        const apiKey = ""; // Runtime automatically provided
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        });
+
+        const result = await response.json();
+        const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (text) {
+          adviceContent.innerText = text;
+        } else {
+          adviceContent.innerText = `${currentState.emotionName} 감정을 깊이 들여다보는 귀중한 시간을 가지셨군요. 감정은 억누르기보다 온전히 자각하고 흘려보낼 때 가장 건강하게 다루어집니다. 위 제안된 맞춤 액션 중 마음에 드는 한 가지를 가볍게 시도해 보세요.`;
+        }
+      } catch (err) {
+        console.log("Gemini API fallback triggered:", err);
+        adviceContent.innerText = `${currentState.emotionName} 감정을 느끼고 계신 상황을 유심히 살펴보았습니다. 감정 본부에서는 유저님이 스스로를 보호하고 마음의 균형을 되찾으실 수 있도록 위 5~7가지 전용 솔루션을 준비했습니다. 한 번에 하나씩 편안한 마음으로 실천해보세요.`;
+      }
+    }
+
+    // --- INTERACTIVE TOOLKIT HELPERS ---
+    function saveToolInput(id, title) {
+      const input = document.getElementById(`tool_input_${id}`);
+      if (!input || !input.value.trim()) {
+        showToast('내용을 입력해 주세요!');
+        return;
+      }
+      showToast(`'${title}' 내용이 기록되었습니다!`);
+      input.value = '';
+    }
+    window.saveToolInput = saveToolInput;
+
+    function start478Timer() {
+      const display = document.getElementById('timerDisplay');
+      if (!display) return;
+
+      let step = 0;
+      const phases = [
+        { text: "🫁 4초간 코로 천천히 들이쉬세요...", sec: 4, color: "text-blue-400" },
+        { text: "⏸️ 7초간 숨을 멈추세요...", sec: 7, color: "text-yellow-400" },
+        { text: "😮‍💨 8초간 입으로 천천히 내쉬세요...", sec: 8, color: "text-emerald-400" }
+      ];
+
+      function runPhase() {
+        if (step >= phases.length) {
+          display.className = "text-xl font-bold text-green-400";
+          display.innerText = "✨ 4-7-8 호흡 완료! 마음이 가벼워졌기를 바랍니다.";
+          return;
+        }
+        const current = phases[step];
+        display.className = `text-lg font-black ${current.color}`;
+        let count = current.sec;
+        display.innerText = `${current.text} (${count})`;
+
+        const interval = setInterval(() => {
+          count--;
+          if (count > 0) {
+            display.innerText = `${current.text} (${count})`;
+          } else {
+            clearInterval(interval);
+            step++;
+            runPhase();
+          }
+        }, 1000);
+      }
+
+      runPhase();
+    }
+    window.start478Timer = start478Timer;
+
+    function shredPaper() {
+      const text = document.getElementById('shredText');
+      if (!text || !text.value.trim()) {
+        showToast('지우고 싶은 마음의 글을 적어주세요.');
+        return;
+      }
+      text.classList.add('animate-shred');
+      setTimeout(() => {
+        text.value = '';
+        text.classList.remove('animate-shred');
+        showToast('🔥 속상했던 마음이 깔끔하게 분쇄되어 사라졌습니다!');
+      }, 1000);
+    }
+    window.shredPaper = shredPaper;
+
+    function spinRoulette() {
+      const missions = [
+        "🥤 시원한 물 한 잔 천천히 마시기",
+        "🙆‍♂️ 어깨와 목 스트레칭 30초하기",
+        "🪟 창문 열고 바깥 공기 3번 깊게 마시기",
+        "🎵 좋아하는 신나는 노래 1곡 듣기",
+        "✏️ 종이에 눈 감고 무작위 선 그리기"
+      ];
+      const random = missions[Math.floor(Math.random() * missions.length)];
+      const res = document.getElementById('rouletteResult');
+      if (res) res.innerText = `🎯 미션: ${random}`;
+    }
+    window.spinRoulette = spinRoulette;
+
+    function start5SecCountdown() {
+      let count = 5;
+      const interval = setInterval(() => {
+        if (count > 0) {
+          showToast(`🔥 용기 카운트다운: ${count}`);
+          count--;
+        } else {
+          clearInterval(interval);
+          showToast('🚀 지금 바로 첫 걸음을 내딛으세요!');
+        }
+      }, 1000);
+    }
+    window.start5SecCountdown = start5SecCountdown;
+
+    // Doodle Canvas Setup
+    let isDrawing = false;
+    function initDoodleCanvas() {
+      const canvas = document.getElementById('doodleCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.strokeStyle = '#FACC15';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+
+      canvas.onmousedown = (e) => { isDrawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); };
+      canvas.onmousemove = (e) => { if (isDrawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } };
+      canvas.onmouseup = () => { isDrawing = false; };
+      canvas.onmouseleave = () => { isDrawing = false; };
+    }
+
+    function clearDoodle() {
+      const canvas = document.getElementById('doodleCanvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    window.clearDoodle = clearDoodle;
+
+    // --- STEP 6: CORE MEMORY SAVING & VAULT ---
+    function saveToVault() {
+      const memory = {
+        id: Date.now(),
+        emotion: currentState.emotionName,
+        emoji: currentState.emoji,
+        color: currentState.color,
+        intensity: currentState.intensity,
+        situation: currentState.situation || '마음속 상황 간직',
+        date: new Date().toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      };
+
+      currentState.savedMemories.push(memory);
+      document.getElementById('savedCount').innerText = currentState.savedMemories.length;
+
+      // Final Orb Styling
+      document.getElementById('finalOrbEmoji').innerText = currentState.emoji;
+      document.getElementById('finalOrbText').innerText = `${currentState.emotionName} 기억`;
+      document.getElementById('finalOrbGlow').style.backgroundColor = currentState.color;
+
+      // Sync floating orbs on homepage
+      renderHomepageFloatingOrbs();
+
+      showToast('✨ 핵심 기억 창고에 구슬이 안전하게 보관되었습니다!');
+    }
+    window.saveToVault = saveToVault;
+
+    function openMemoryVault() {
+      const modal = document.getElementById('vaultModal');
+      const list = document.getElementById('vaultList');
+      modal.classList.remove('hidden');
+
+      if (currentState.savedMemories.length === 0) {
+        list.innerHTML = `<p class="text-slate-400 text-xs text-center py-12">아직 저장된 핵심 기억 구슬이 없습니다.<br>감정을 탐색한 후 핵심 기억으로 보관해 보세요!</p>`;
+        return;
+      }
+
+      list.innerHTML = '';
+      currentState.savedMemories.forEach(m => {
+        const item = document.createElement('div');
+        item.className = "glass-card p-4 rounded-2xl border border-white/10 flex items-center justify-between gap-3";
+        item.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center text-xl shadow" style="background-color: ${m.color}33; border: 1px solid ${m.color}">
+              ${m.emoji}
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-sm text-white">${m.emotion} 구슬</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">${m.intensity}단계</span>
+              </div>
+              <p class="text-xs text-slate-300 line-clamp-1 mt-0.5">${m.situation}</p>
+              <span class="text-[10px] text-slate-500">${m.date}</span>
+            </div>
+          </div>
+          <button onclick="deleteMemory(${m.id})" class="text-slate-500 hover:text-red-400 p-2 text-xs">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        `;
+        list.appendChild(item);
+      });
+    }
+    window.openMemoryVault = openMemoryVault;
+
+    function closeMemoryVault() {
+      document.getElementById('vaultModal').classList.add('hidden');
+    }
+    window.closeMemoryVault = closeMemoryVault;
+
+    function deleteMemory(id) {
+      currentState.savedMemories = currentState.savedMemories.filter(m => m.id !== id);
+      document.getElementById('savedCount').innerText = currentState.savedMemories.length;
+      openMemoryVault();
+      renderHomepageFloatingOrbs();
+      showToast('기억 구슬이 정리되었습니다.');
+    }
+    window.deleteMemory = deleteMemory;
+
+    function rateFeedback(ratingText) {
+      showToast(`피드백 감사드립니다: "${ratingText}"`);
+    }
+    window.rateFeedback = rateFeedback;
+
+    // --- TOAST NOTIFICATION ---
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.innerText = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2500);
+    }
+    window.showToast = showToast;
+  </script>
+</body>
+</html>
